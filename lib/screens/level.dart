@@ -41,7 +41,7 @@ class LevelScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<GameBloc>(
-          create: (context) => GameBloc(difficulty: difficulty, level: 5),
+          create: (context) => GameBloc(difficulty: difficulty, level: 1),
         ),
         BlocProvider<MatchingBloc>(
           create: (context) => MatchingBloc(),
