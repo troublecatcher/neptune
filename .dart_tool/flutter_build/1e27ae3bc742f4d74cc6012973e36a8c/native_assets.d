@@ -1,0 +1,1 @@
+ /Users/gnuao/GitHub/wildwest/.dart_tool/flutter_build/1e27ae3bc742f4d74cc6012973e36a8c/native_assets.yaml: 

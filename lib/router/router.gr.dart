@@ -45,6 +45,7 @@ abstract class _$AppRouter extends RootStackRouter {
           key: args.key,
           timerBloc: args.timerBloc,
           gameBloc: args.gameBloc,
+          difficulty: args.difficulty,
         ),
       );
     },
@@ -141,6 +142,7 @@ class PauseRoute extends PageRouteInfo<PauseRouteArgs> {
     Key? key,
     required TimerBloc timerBloc,
     required GameBloc gameBloc,
+    required Difficulty difficulty,
     List<PageRouteInfo>? children,
   }) : super(
           PauseRoute.name,
@@ -148,6 +150,7 @@ class PauseRoute extends PageRouteInfo<PauseRouteArgs> {
             key: key,
             timerBloc: timerBloc,
             gameBloc: gameBloc,
+            difficulty: difficulty,
           ),
           initialChildren: children,
         );
@@ -162,6 +165,7 @@ class PauseRouteArgs {
     this.key,
     required this.timerBloc,
     required this.gameBloc,
+    required this.difficulty,
   });
 
   final Key? key;
@@ -170,9 +174,11 @@ class PauseRouteArgs {
 
   final GameBloc gameBloc;
 
+  final Difficulty difficulty;
+
   @override
   String toString() {
-    return 'PauseRouteArgs{key: $key, timerBloc: $timerBloc, gameBloc: $gameBloc}';
+    return 'PauseRouteArgs{key: $key, timerBloc: $timerBloc, gameBloc: $gameBloc, difficulty: $difficulty}';
   }
 }
 

@@ -13,11 +13,15 @@ class AppRouter extends _$AppRouter {
   @override
   List<AutoRoute> get routes => [
         AutoRoute(page: MainMenuRoute.page, initial: true),
-        AutoRoute(page: LevelRoute.page),
+        CustomRoute(
+            page: LevelRoute.page,
+            transitionsBuilder: TransitionsBuilders.fadeIn),
         AutoRoute(page: DifficultyRoute.page),
         AutoRoute(page: SettingsRoute.page),
         AutoRoute(page: PrivacyPolicyRoute.page),
         AutoRoute(page: TermsOfUseRoute.page),
-        AutoRoute(page: PauseRoute.page),
+        CustomRoute(
+            page: PauseRoute.page,
+            transitionsBuilder: TransitionsBuilders.fadeIn),
       ];
 }

@@ -1,31 +1,44 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide BoxDecoration, BoxShadow;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get_it/get_it.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:neptune/screens/main_menu.dart';
 import 'package:neptune/theme/default.dart';
-import 'package:neptune/timer/timer_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'bloc/audio.dart';
 import 'router/router.dart';
-import 'timer/ticker.dart';
 
 final player = AudioPlayer();
+final locator = GetIt.instance;
+bool musicIncluded = false;
+String musicAssetPath = 'assets/music.mp3';
 
-main() {
+main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
-  player.setAsset('assets/music.mp3');
-  player.play();
-  player.playerStateStream.listen((state) {
-    if (state.processingState == ProcessingState.completed) {
-      player.seek(Duration.zero);
-      player.play();
-    }
-  });
+  if (musicIncluded) {
+    player.setAsset(musicAssetPath);
+    player.play();
+    player.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        player.seek(Duration.zero);
+        player.play();
+      }
+    });
+  }
+  final sharedPreferences = await SharedPreferences.getInstance();
+  locator.registerLazySingleton<SharedPreferences>(() => sharedPreferences);
+  // locator<SharedPreferences>().clear();
+  if (locator<SharedPreferences>().getBool('diff1') == null) {
+    await locator<SharedPreferences>().setBool('diff1', true);
+    await locator<SharedPreferences>().setBool('diff2', false);
+    await locator<SharedPreferences>().setBool('diff3', false);
+  }
   runApp(
     MultiBlocProvider(
       providers: [
@@ -44,63 +57,20 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
-
-    return MaterialApp.router(
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color.fromRGBO(50, 145, 166, 1),
-        iconTheme: const IconThemeData(
-          color: Color.fromRGBO(57, 174, 200, 1),
-          size: 24,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ButtonStyle(
-            textStyle: MaterialStateProperty.all<TextStyle>(
-              TextStyle(
-                fontSize: isTablet ? 24 : 16,
-                color: Colors.white,
-              ),
-            ),
-            elevation: MaterialStateProperty.all<double>(0),
-            shape: MaterialStateProperty.all<OutlinedBorder>(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
-              const EdgeInsets.all(10),
-            ),
-            minimumSize: MaterialStateProperty.all<Size>(
-              const Size(241, 48),
-            ),
-            backgroundColor: MaterialStateProperty.all<Color>(
-              Color.fromRGBO(57, 174, 200, 1),
-            ),
-          ),
-        ),
-        textTheme: TextTheme(
-          displayLarge: TextStyle(
-            fontFamily: 'Roboto',
-            fontSize: isTablet ? 48 : 32,
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-          ),
-          displayMedium: TextStyle(
-            fontFamily: 'Roboto',
-            fontSize: isTablet ? 36 : 24,
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
-          displaySmall: TextStyle(
-            fontFamily: 'Roboto',
-            fontSize: isTablet ? 24 : 16,
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-      debugShowCheckedModeBanner: false,
-      routerConfig: _appRouter.config(),
+    return ScreenUtilInit(
+      designSize: const Size(375, 812),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        ScreenUtil.init(context);
+        return MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+            child: MaterialApp.router(
+              theme: theme,
+              debugShowCheckedModeBanner: false,
+              routerConfig: _appRouter.config(),
+            ));
+      },
     );
   }
 }

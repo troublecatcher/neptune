@@ -2,14 +2,19 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_exit_app/flutter_exit_app.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:neptune/const/color.dart';
 import 'package:neptune/router/router.dart';
+import 'package:neptune/widgets/custom_text_button.dart';
 import 'package:neptune/widgets/icon_button.dart';
+import 'package:neptune/widgets/sound_and_settings.dart';
+import 'package:neptune/widgets/svg_title.dart';
+import 'package:neptune/widgets/widget_padding.dart';
 
 import '../bloc/audio.dart';
 import '../main.dart';
+import '../widgets/custom_texticon_button.dart';
 
 @RoutePage()
 class MainMenuScreen extends StatelessWidget {
@@ -22,114 +27,60 @@ class MainMenuScreen extends StatelessWidget {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-            image: DecorationImage(
-                image: AssetImage("assets/bg/main_menu.png"),
-                fit: BoxFit.cover)),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // SvgPicture.asset(
-              //   'assets/bg/main_menu.svg',
-              //   alignment: Alignment.center,
-              //   width: MediaQuery.of(context).size.width,
-              //   height: MediaQuery.of(context).size.height,
-              // ),
-              Padding(
-                padding:
-                    EdgeInsets.all(MediaQuery.of(context).size.height / 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Neptune ',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                    Text(
-                      'games',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding:
-                    EdgeInsets.all(MediaQuery.of(context).size.height / 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Row(
+          image: DecorationImage(
+            image: AssetImage('assets/bg/main.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Color.fromRGBO(0, 0, 0, 0.5),
+              ],
+            ),
+            backgroundBlendMode: BlendMode.darken,
+          ),
+          child: SafeArea(
+            child: WidgetPadding(
+              child: Stack(
+                children: [
+                  const SvgTitle(path: 'assets/titles/main.svg'),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: CustomTextIconButton(
+                        callback: (_) {
+                          context.router.push(const DifficultyRoute());
+                        },
                         children: [
-                          BlocBuilder<AudioBloc, AudioState>(
-                            builder: (context, state) {
-                              return CustomIconButton(
-                                path: state.iconAsset,
-                                callback: (_) {
-                                  if (state.isPlaying) {
-                                    audioBloc.add(AudioEvent.pause);
-                                  } else {
-                                    audioBloc.add(AudioEvent.play);
-                                  }
-                                },
-                                radius: 16,
-                              );
-                            },
-                          ),
-                          Padding(
-                            padding: EdgeInsets.only(
-                                left: 5 *
-                                    MediaQuery.of(context).devicePixelRatio),
-                            child: CustomIconButton(
-                              path: 'assets/icons/settings.svg',
-                              callback: (_) {
-                                context.router.push(const SettingsRoute());
-                              },
-                              radius: 16,
-                            ),
+                          SvgPicture.asset('assets/icons/play.svg'),
+                          SizedBox(width: 5.sp),
+                          Text(
+                            'Play',
+                            style: Theme.of(context).textTheme.displayLarge,
                           )
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                        child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Main menu',
-                          style: Theme.of(context).textTheme.displayLarge,
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(
-                              vertical:
-                                  4 * MediaQuery.of(context).devicePixelRatio),
-                          child: ElevatedButton(
-                              onPressed: () {
-                                context.router.push(const DifficultyRoute());
-                              },
-                              child: Text(
-                                'Start game',
-                                style: Theme.of(context).textTheme.displaySmall,
-                              )),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                              bottom: MediaQuery.of(context).size.height / 6),
-                          child: ElevatedButton(
-                              onPressed: () {
-                                FlutterExitApp.exitApp(iosForceExit: true);
-                              },
-                              child: Text('Exit',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .displaySmall)),
-                        ),
-                      ],
-                    )),
-                    Expanded(child: Container()),
-                  ],
-                ),
-              )
-            ],
+                        ]),
+                  ),
+                  SoundAndSettings(audioBloc: audioBloc),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: CustomTextIconButton(
+                        callback: (_) {
+                          FlutterExitApp.exitApp(iosForceExit: true);
+                        },
+                        children: [
+                          SvgPicture.asset('assets/icons/exit.svg'),
+                          SizedBox(width: 5.sp),
+                          Text('Exit',
+                              style: Theme.of(context).textTheme.displayLarge),
+                        ]),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

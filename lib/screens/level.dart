@@ -6,19 +6,29 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_custom_dialog/flutter_custom_dialog.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:neptune/bloc/matching.dart';
-import 'package:neptune/const/color.dart';
+import 'package:neptune/main.dart';
 import 'package:neptune/router/router.dart';
+import 'package:neptune/screens/card.dart';
+import 'package:neptune/widgets/front.dart';
 import 'package:neptune/widgets/icon_button.dart';
+import 'package:neptune/widgets/widget_padding.dart';
+import 'package:pro_animated_blur/pro_animated_blur.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer_animation/shimmer_animation.dart';
 
 import '../bloc/game.dart';
+import '../theme/default.dart';
 import '../timer/ticker.dart';
 import '../timer/timer_bloc.dart';
 import 'difficulty.dart';
+import 'loss_dialog.dart';
+import 'victory_dialog.dart';
 
-var disclosureStatus;
+List<bool> disclosureStatus = [];
 late List<String> pictures;
 var selectedPictures;
 var selectedIndexes;
+bool shimmering = false;
 
 @RoutePage()
 class LevelScreen extends StatelessWidget {
@@ -31,7 +41,7 @@ class LevelScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<GameBloc>(
-          create: (context) => GameBloc(difficulty: difficulty, level: 1),
+          create: (context) => GameBloc(difficulty: difficulty, level: 5),
         ),
         BlocProvider<MatchingBloc>(
           create: (context) => MatchingBloc(),
@@ -63,78 +73,13 @@ class _LevelScreenBody extends StatelessWidget {
       }
       if (state is GameWonState) {
         BlocProvider.of<GameBloc>(context).add(GamePauseEvent());
-        YYDialog().build(context)
-          ..width = MediaQuery.of(context).size.width * 0.5
-          ..borderRadius = 16
-          ..backgroundColor = color1
-          ..barrierDismissible = false
-          ..animatedFunc = (child, animation) {
-            return ScaleTransition(
-              child: child,
-              scale: Tween(begin: 0.0, end: 1.0).animate(animation),
-            );
-          }
-          ..widget(
-            Padding(
-                padding: const EdgeInsets.all(30),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'Level complete',
-                          style: Theme.of(context).textTheme.displayLarge,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'You’ve passed the ${difficulty.name} difficulty level.',
-                          style: Theme.of(context).textTheme.displaySmall,
-                        ),
-                      ),
-                      difficulty == Difficulty.hard
-                          ? const SizedBox.shrink()
-                          : Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: ElevatedButton(
-                                style: ButtonStyle(
-                                    backgroundColor:
-                                        MaterialStateProperty.all<Color>(
-                                            color3)),
-                                child: const Text('The Next Difficulty'),
-                                onPressed: () {
-                                  // BlocProvider.of<GameBloc>(context)
-                                  //     .add(GameRestartEvent());
-                                  BlocProvider.of<MatchingBloc>(context)
-                                      .add(InitialMatchingEvent());
-                                  context.router.pushAndPopUntil(
-                                    LevelRoute(
-                                        difficulty:
-                                            difficulty == Difficulty.easy
-                                                ? Difficulty.normal
-                                                : Difficulty.hard),
-                                    predicate: (_) => false,
-                                  );
-                                  context.router.pop();
-                                },
-                              ),
-                            ),
-                      ElevatedButton(
-                          style: ButtonStyle(
-                              backgroundColor:
-                                  MaterialStateProperty.all<Color>(color2)),
-                          onPressed: () {
-                            context.router.pushAndPopUntil(
-                              const MainMenuRoute(),
-                              predicate: (_) => false,
-                            );
-                          },
-                          child: const Text('Back to menu')),
-                    ])),
-          )
-          ..show();
+        victoryDialog(context, difficulty);
+        if (difficulty == Difficulty.easy) {
+          locator<SharedPreferences>().setBool('diff2', true);
+        }
+        if (difficulty == Difficulty.normal) {
+          locator<SharedPreferences>().setBool('diff3', true);
+        }
       }
       if (state is GameRestartedState) {
         BlocProvider.of<MatchingBloc>(context).add(InitialMatchingEvent());
@@ -144,13 +89,18 @@ class _LevelScreenBody extends StatelessWidget {
         );
       }
       if (state is GameResetState) {
-        BlocProvider.of<MatchingBloc>(context).add(InitialMatchingEvent());
-        initialize(context);
+        shimmering = true;
+        Future.delayed(const Duration(seconds: 2), () {
+          shimmering = false;
+          BlocProvider.of<MatchingBloc>(context).add(InitialMatchingEvent());
+          initialize(context);
+        });
       }
     });
     BlocProvider.of<MatchingBloc>(context).stream.listen((state) async {
       if (state is ImageMatchState &&
-          disclosureStatus.where((status) => !status).length == 3) {
+          disclosureStatus.where((status) => !status).length == 1) {
+        disclosureStatus[disclosureStatus.indexOf(false)] = true;
         BlocProvider.of<MatchingBloc>(context).add(InitialMatchingEvent());
         BlocProvider.of<GameBloc>(context).add(GameNextLevelEvent());
       }
@@ -163,128 +113,149 @@ class _LevelScreenBody extends StatelessWidget {
         BlocProvider.of<MatchingBloc>(context).add(InitialMatchingEvent());
       }
     });
-
     return Scaffold(
-      body: SafeArea(
-        child: BlocBuilder<TimerBloc, TimerState>(
-          builder: (context, state) {
-            if (state is TimerRunInProgress &&
-                BlocProvider.of<GameBloc>(context).state
-                    is GameCountdownState) {
-              return Center(
-                child: Text(
-                  state.duration.toString(),
-                  style: TextStyle(
-                      fontSize: 100 * MediaQuery.of(context).devicePixelRatio,
-                      fontFamily: 'Roboto',
-                      color: Colors.white),
-                ),
-              );
-            } else {
+      body: Container(
+        decoration: BoxDecoration(
+            image: DecorationImage(
+                image: AssetImage(difficulty.pauseImagePath),
+                fit: BoxFit.cover)),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Color.fromRGBO(0, 0, 0, 0.5),
+              ],
+            ),
+            backgroundBlendMode: BlendMode.darken,
+          ),
+          child: SafeArea(
+            child:
+                BlocBuilder<TimerBloc, TimerState>(builder: (context, state) {
               return Stack(
                 children: [
                   BlocBuilder<TimerBloc, TimerState>(
                     builder: (context, state) {
                       return Padding(
-                        padding: EdgeInsets.only(top: 10, right: 10, left: 10),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              flex: 1,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(
-                                        color: color1,
-                                        borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(8),
-                                            bottomLeft: Radius.circular(8))),
-                                    child: Text(
-                                      'Level',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .displaySmall,
+                        padding:
+                            const EdgeInsets.only(top: 10, right: 10, left: 10),
+                        child: WidgetPadding(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                flex: 1,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                          color: textBeigeColor,
+                                          border: Border.all(
+                                              width: 2, color: textBrownColor),
+                                          borderRadius: const BorderRadius.all(
+                                              Radius.circular(16))),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: const BoxDecoration(
+                                                color: textBrownColor,
+                                                borderRadius: BorderRadius.all(
+                                                    Radius.circular(14))),
+                                            child: Text(
+                                              'Level',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .displaySmall!
+                                                  .copyWith(
+                                                      color: textBeigeColor),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                              '${BlocProvider.of<GameBloc>(context).level} / 5',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .displayMedium),
+                                          const SizedBox(width: 10),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(color: color2),
-                                    child: Text(
-                                        '${BlocProvider.of<GameBloc>(context).level} / 5',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .displaySmall),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(
-                                        color: color3,
-                                        borderRadius: const BorderRadius.only(
-                                            topRight: Radius.circular(8),
-                                            bottomRight: Radius.circular(8))),
-                                    child: Text(difficulty.name,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .displaySmall),
-                                  ),
-                                ],
+                                    const SizedBox(width: 10),
+                                    Container(
+                                      padding: EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                          color: textBeigeColor,
+                                          border: Border.all(
+                                              width: 2, color: textBrownColor),
+                                          borderRadius: const BorderRadius.all(
+                                              Radius.circular(16))),
+                                      child: Text(difficulty.name,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .displayMedium),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Flexible(
-                              flex: 1,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(
-                                        color: color1,
-                                        borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(8),
-                                            bottomLeft: Radius.circular(8))),
-                                    child: Text('Time',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .displaySmall),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(
-                                        color: color2,
-                                        borderRadius: const BorderRadius.only(
-                                            topRight: Radius.circular(8),
-                                            bottomRight: Radius.circular(8))),
-                                    child: Text(
+                              Container(
+                                decoration: BoxDecoration(
+                                    color: textBeigeColor,
+                                    border: Border.all(
+                                        width: 2, color: textBrownColor),
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(16))),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                          color: textBrownColor,
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(14))),
+                                      child: SvgPicture.asset(
+                                          'assets/icons/timer.svg'),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
                                         '${(state.duration / 60).floor()}:${state.duration.remainder(60).toString().padLeft(2, '0')}',
                                         style: Theme.of(context)
                                             .textTheme
-                                            .displaySmall),
-                                  ),
-                                ],
+                                            .displayMedium),
+                                    const SizedBox(width: 10),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Flexible(
-                              flex: 1,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  CustomIconButton(
+                              Flexible(
+                                flex: 1,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    CustomIconButton(
                                       path: 'assets/icons/menu.svg',
                                       callback: (_) {
-                                        BlocProvider.of<TimerBloc>(context)
-                                            .add(const TimerPaused());
-                                        context.router.navigate(PauseRoute(
-                                            timerBloc:
-                                                context.read<TimerBloc>(),
-                                            gameBloc:
-                                                context.read<GameBloc>()));
+                                        if (BlocProvider.of<GameBloc>(context)
+                                            .state is! GameCountdownState) {
+                                          BlocProvider.of<TimerBloc>(context)
+                                              .add(const TimerPaused());
+                                          context.router.navigate(PauseRoute(
+                                              timerBloc:
+                                                  context.read<TimerBloc>(),
+                                              gameBloc:
+                                                  context.read<GameBloc>(),
+                                              difficulty: difficulty));
+                                        }
                                       },
-                                      radius: 8),
-                                ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -295,87 +266,102 @@ class _LevelScreenBody extends StatelessWidget {
                         disclosureStatus[state.image1] = true;
                         disclosureStatus[state.image2] = true;
                       }
-
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 9,
-                            ),
-                            itemCount: pictures.length,
-                            itemBuilder: (context, index) {
-                              return GestureDetector(
-                                onTap: () {
-                                  if (!disclosureStatus[index] &&
-                                      context.read<MatchingBloc>().state
-                                          is! ImageMismatchState) {
-                                    BlocProvider.of<MatchingBloc>(context).add(
-                                        ImageSelected(pictures[index], index));
-                                  }
+                          Shimmer(
+                            duration: const Duration(seconds: 2),
+                            interval: const Duration(days: 10),
+                            color: Colors.white,
+                            enabled: shimmering,
+                            direction: const ShimmerDirection.fromLTRB(),
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                  top: MediaQuery.of(context).size.height / 4),
+                              child: GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 8,
+                                        mainAxisSpacing: 4,
+                                        crossAxisSpacing: 4),
+                                itemCount: pictures.length,
+                                itemBuilder: (context, index) {
+                                  return GestureDetector(
+                                    onTap: () {
+                                      if (BlocProvider.of<GameBloc>(context)
+                                              .state is! GameCountdownState &&
+                                          !disclosureStatus[index] &&
+                                          context.read<MatchingBloc>().state
+                                              is! ImageMismatchState) {
+                                        BlocProvider.of<MatchingBloc>(context)
+                                            .add(ImageSelected(
+                                                pictures[index], index));
+                                      }
+                                    },
+                                    child: BlocBuilder<MatchingBloc,
+                                        MatchingState>(
+                                      builder: (context, state) {
+                                        if (state is ImageMatchState) {
+                                          disclosureStatus[state.image1] = true;
+                                          disclosureStatus[state.image2] = true;
+                                        }
+                                        if (state is ImageSelectedState &&
+                                            state.index == index) {
+                                          disclosureStatus[index] = true;
+                                        }
+                                        return CardWidget(
+                                            frontImage: const FrontImage(),
+                                            backImage: Container(
+                                              margin: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                  color: textBeigeColor,
+                                                  borderRadius:
+                                                      BorderRadius.all(
+                                                          Radius.circular(16))),
+                                              child: Image.asset(
+                                                pictures[index],
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
+                                            isClosed: !disclosureStatus[index]);
+                                      },
+                                    ),
+                                  );
                                 },
-                                child: BlocBuilder<MatchingBloc, MatchingState>(
-                                  builder: (context, state) {
-                                    if (state is ImageMatchState) {
-                                      disclosureStatus[state.image1] = true;
-                                      disclosureStatus[state.image2] = true;
-                                    }
-                                    if (state is ImageSelectedState &&
-                                        state.index == index) {
-                                      return Container(
-                                        padding: const EdgeInsets.all(5),
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(
-                                              color: Colors.white, width: 5),
-                                        ),
-                                        child: Image.asset(
-                                          pictures[index],
-                                        ),
-                                      );
-                                    } else {
-                                      return Container(
-                                        padding: const EdgeInsets.all(4),
-                                        child: ClipRRect(
-                                          borderRadius: const BorderRadius.all(
-                                              Radius.circular(8)),
-                                          child: disclosureStatus[index]
-                                              ? Image.asset(
-                                                  pictures[index],
-                                                  fit: BoxFit.cover,
-                                                )
-                                              : SvgPicture.asset(
-                                                  'assets/cards/card.svg',
-                                                  fit: BoxFit.cover,
-                                                ),
-                                          // ? SvgPicture.asset(
-                                          //     'assets/cards/card.svg',
-                                          //     fit: BoxFit.cover,
-                                          //   )
-                                          // : Image.asset(
-                                          //     pictures[index],
-                                          //     fit: BoxFit.cover,
-                                          //   ),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                              );
-                            },
+                              ),
+                            ),
                           ),
                         ],
                       );
                     },
                   ),
+                  ProAnimatedBlur(
+                    blur: BlocProvider.of<GameBloc>(context).state
+                            is GameCountdownState
+                        ? 20
+                        : 0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.linear,
+                    child: Center(
+                      child: Text(
+                        BlocProvider.of<GameBloc>(context).state
+                                is GameCountdownState
+                            ? state.duration.toString()
+                            : "",
+                        style: TextStyle(
+                            fontSize:
+                                100 * MediaQuery.of(context).devicePixelRatio,
+                            fontFamily: 'Roboto',
+                            color: Colors.white),
+                      ),
+                    ),
+                  ),
                 ],
               );
-            }
-          },
+            }),
+          ),
         ),
       ),
     );
@@ -387,25 +373,16 @@ class _LevelScreenBody extends StatelessWidget {
     }
     pictures = [];
     disclosureStatus = [];
-    disclosureStatus = List.filled(27, false);
+    disclosureStatus = List.filled(24, false);
     BlocProvider.of<TimerBloc>(context).add(TimerReset());
     BlocProvider.of<TimerBloc>(context).add(const TimerStarted(3));
     var allPictures =
-        List.generate(40, (index) => 'assets/cards/image${index + 1}.jpg');
-    selectedIndexes = [];
-    selectedPictures = [];
-    while (selectedPictures.length < 14) {
-      var randomIndex = Random().nextInt(allPictures.length);
-      if (!selectedIndexes.contains(randomIndex)) {
-        selectedPictures.add(allPictures[randomIndex]);
-        selectedIndexes.add(randomIndex);
-      }
+        List.generate(12, (index) => 'assets/cards/image${index + 1}.png');
+
+    for (var i = 0; i < 12; i++) {
+      pictures.add(allPictures[i]);
+      pictures.add(allPictures[i]);
     }
-    for (var i = 0; i < 13; i++) {
-      pictures.add(selectedPictures[i]);
-      pictures.add(selectedPictures[i]);
-    }
-    pictures.add(selectedPictures.last);
     pictures.shuffle();
 
     BlocProvider.of<TimerBloc>(context).stream.listen((state) {
@@ -416,68 +393,7 @@ class _LevelScreenBody extends StatelessWidget {
               .add(TimerStarted(difficulty.gameTime.inSeconds));
         }
         if (BlocProvider.of<GameBloc>(context).state is GameRunningState) {
-          YYDialog().build(context)
-            ..width = MediaQuery.of(context).size.width * 0.5
-            ..borderRadius = 16
-            ..backgroundColor = color1
-            ..barrierDismissible = false
-            ..animatedFunc = (child, animation) {
-              return ScaleTransition(
-                scale: Tween(begin: 0.0, end: 1.0).animate(animation),
-                child: child,
-              );
-            }
-            ..widget(
-              Padding(
-                  padding: const EdgeInsets.all(30),
-                  child: Center(
-                    child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'Level lost',
-                              style: Theme.of(context).textTheme.displayLarge,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              'You’ve ran out of time.',
-                              style: Theme.of(context).textTheme.displaySmall,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: ElevatedButton(
-                              style: ButtonStyle(
-                                  backgroundColor:
-                                      MaterialStateProperty.all<Color>(color3)),
-                              child: const Text('Try again'),
-                              onPressed: () {
-                                BlocProvider.of<GameBloc>(context)
-                                    .add(GameRestartEvent());
-                                BlocProvider.of<MatchingBloc>(context)
-                                    .add(InitialMatchingEvent());
-                              },
-                            ),
-                          ),
-                          ElevatedButton(
-                              style: ButtonStyle(
-                                  backgroundColor:
-                                      MaterialStateProperty.all<Color>(color2)),
-                              onPressed: () {
-                                context.router.pushAndPopUntil(
-                                  const MainMenuRoute(),
-                                  predicate: (_) => false,
-                                );
-                              },
-                              child: const Text('Back to menu')),
-                        ]),
-                  )),
-            )
-            ..show();
+          lossDialog(context, difficulty);
         }
       }
     });
